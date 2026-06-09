@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Architecture Diagram Generator</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f9;
+            --panel-bg: #ffffff;
+            --border-color: #d1d9e0;
+            --text-color: #2c3e50;
+            --header-bg: #e8edf2;
+            --primary-color: #3498db;
+            --primary-text: #ffffff;
+            --success-color: #27ae60;
+            --error-color: #c0392b;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .main-header {
+            padding: 10px 20px;
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            z-index: 10;
+        }
+
+        .main-header h1 {
+            margin: 0;
+            font-size: 1.3em;
+        }
+
+        .main-container {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .input-panel {
+            flex: 0 0 32%;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+        }
+
+        .output-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            min-width: 0;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.2em;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        textarea {
+            width: 100%;
+            flex-grow: 1;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: none;
+        }
+
+        .json-editor-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #json-status {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        #json-status.valid {
+            background-color: #e9f7ef;
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+        }
+
+        #json-status.invalid {
+            background-color: #f9ebea;
+            color: var(--error-color);
+            border: 1px solid var(--error-color);
+        }
+
+        .controls {
+            background-color: var(--header-bg);
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+
+        .controls fieldset {
+            border: none;
+            padding: 0;
+            margin: 0 0 15px 0;
+        }
+
+        .controls label {
+            display: block;
+            margin: 4px 0;
+        }
+
+        #generate-btn {
+            width: 100%;
+            padding: 12px;
+            font-size: 1.1em;
+            font-weight: bold;
+            background-color: var(--primary-color);
+            color: var(--primary-text);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        #generate-btn:hover {
+            background-color: #2980b9;
+        }
+
+        /* Tabs */
+        .tab-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .tab-button {
+            padding: 10px 15px;
+            cursor: pointer;
+            border: none;
+            background-color: transparent;
+            border-bottom: 3px solid transparent;
+            font-size: 1em;
+        }
+
+        .tab-button.active {
+            border-bottom-color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .tab-content {
+            flex-grow: 1;
+            display: none;
+            padding: 10px 0 0 0;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Diagram preview area (now the primary view) */
+        .preview-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .preview-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            background-color: var(--header-bg);
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            flex-wrap: wrap;
+        }
+
+        .preview-toolbar .toolbar-label {
+            font-weight: bold;
+            margin-right: 8px;
+            font-size: 0.95em;
+        }
+
+        .preview-toolbar .toolbar-spacer {
+            flex-grow: 1;
+        }
+
+        .tool-btn {
+            background-color: #fff;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.15s, border-color 0.15s;
+            line-height: 1;
+            min-width: 28px;
+        }
+
+        .tool-btn:hover:not(:disabled) {
+            background-color: var(--header-bg);
+            border-color: #b9c2cc;
+        }
+
+        .tool-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .tool-btn.primary {
+            background-color: var(--primary-color);
+            color: var(--primary-text);
+            border-color: var(--primary-color);
+        }
+
+        .tool-btn.primary:hover:not(:disabled) {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+
+        .preview-box {
+            flex-grow: 1;
+            background-color: #fdfdfd;
+            background-image:
+                linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, 10px 0;
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 4px 4px;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+            min-height: 200px;
+        }
+
+        .preview-box.is-panning {
+            cursor: grabbing;
+        }
+
+        .preview-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+            display: inline-block;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .preview-content img,
+        .preview-content svg {
+            display: block;
+            max-width: none;
+            max-height: none;
+            pointer-events: none;
+        }
+
+        .preview-status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 16px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-style: italic;
+            color: #666;
+            pointer-events: none;
+            z-index: 4;
+        }
+
+        .preview-status.error {
+            color: var(--error-color);
+            font-style: normal;
+            white-space: pre-wrap;
+            text-align: left;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            max-width: 80%;
+        }
+
+        .zoom-indicator {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 3px 8px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: #555;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        /* Collapsible script drawer */
+        .script-drawer {
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid var(--border-color);
+            margin-top: 8px;
+            transition: flex-basis 0.2s ease, max-height 0.2s ease;
+            flex-basis: 220px;
+            min-height: 0;
+        }
+
+        .script-drawer.collapsed {
+            flex-basis: 36px;
+        }
+
+        .script-drawer.collapsed textarea {
+            display: none;
+        }
+
+        .drawer-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+            flex-shrink: 0;
+        }
+
+        .drawer-header h3 {
+            margin: 0;
+            font-size: 0.95em;
+        }
+
+        .drawer-toggle {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+
+        .drawer-toggle:hover {
+            background-color: var(--header-bg);
+        }
+
+        .drawer-toggle .chev {
+            display: inline-block;
+            margin-right: 4px;
+            transition: transform 0.15s;
+        }
+
+        .script-drawer:not(.collapsed) .drawer-toggle .chev {
+            transform: rotate(90deg);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+        }
+
+        .modal.open {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            position: relative;
+            width: 95%;
+            height: 92%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .modal-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+
+        .modal-title {
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .modal-preview-box {
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+            background-color: #fdfdfd;
+            background-image:
+                linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, 10px 0;
+            cursor: grab;
+        }
+
+        .modal-preview-box.is-panning {
+            cursor: grabbing;
+        }
+
+        .close-modal {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            color: #666;
+            padding: 4px 10px;
+        }
+
+        .close-modal:hover {
+            color: #000;
+            background-color: #fff;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(44, 62, 80, 0.95);
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 4px;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.error {
+            background: rgba(192, 57, 43, 0.95);
+        }
+
+        @media (max-width: 900px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            .input-panel {
+                flex: 0 0 auto;
+                max-height: 45vh;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="main-header">
+        <h1>Live Architecture Diagram Generator</h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Panel 1: JSON Input & Controls -->
+        <div class="input-panel">
+            <h2>1. JSON Input</h2>
+            <div class="json-editor-container">
+                <textarea id="json-input" spellcheck="false"></textarea>
+            </div>
+            <div id="json-status">Enter JSON and click Generate.</div>
+            <div class="controls">
+                <fieldset>
+                    <legend><b>2. Select Diagrams</b></legend>
+                    <label><input type="checkbox" id="cb-puml" checked> Component PUML</label>
+                    <label><input type="checkbox" id="cb-c4" checked> C4 PUML</label>
+                    <label><input type="checkbox" id="cb-mermaid" checked> Mermaid</label>
+                </fieldset>
+                <button id="generate-btn">Generate Diagrams</button>
+            </div>
+        </div>
+
+        <!-- Panel 2: Outputs (Tabs) -->
+        <div class="output-panel">
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="puml">Component PUML</button>
+                    <button class="tab-button" data-tab="c4">C4 PUML</button>
+                    <button class="tab-button" data-tab="mermaid">Mermaid</button>
+                </div>
+
+                <!-- PUML Tab -->
+                <div id="tab-puml" class="tab-content active" data-kind="puml">
+                    <div class="preview-container">
+                        <div class="preview-toolbar">
+                            <span class="toolbar-label">Component PUML</span>
+                            <button class="tool-btn" data-action="zoom-out" title="Zoom out (mouse wheel)">−</button>
+                            <button class="tool-btn" data-action="zoom-in" title="Zoom in (mouse wheel)">+</button>
+                            <button class="tool-btn" data-action="zoom-reset" title="Reset zoom">Reset</button>
+                            <button class="tool-btn" data-action="zoom-fit" title="Fit to screen">Fit</button>
+                            <span class="toolbar-spacer"></span>
+                            <button class="tool-btn" data-action="copy-image" title="Copy image to clipboard">⧉ Copy</button>
+                            <button class="tool-btn" data-action="download-svg" title="Download as SVG">⬇ SVG</button>
+                            <button class="tool-btn" data-action="download-png" title="Download as PNG">⬇ PNG</button>
+                            <button class="tool-btn primary" data-action="popout" title="Open larger view">⛶ Pop Out</button>
+                        </div>
+                        <div id="puml-preview" class="preview-box">
+                            <div class="preview-content"></div>
+                            <div class="preview-status">Generate a diagram to preview it here.</div>
+                            <div class="zoom-indicator">100%</div>
+                        </div>
+                    </div>
+                    <div class="script-drawer collapsed" data-drawer="puml">
+                        <div class="drawer-header">
+                            <button class="drawer-toggle" data-toggle-drawer="puml"><span class="chev">▶</span>Show Script</button>
+                            <h3>PlantUML Script</h3>
+                        </div>
+                        <textarea id="puml-output" spellcheck="false"></textarea>
+                    </div>
+                </div>
+
+                <!-- C4 Tab -->
+                <div id="tab-c4" class="tab-content" data-kind="c4">
+                    <div class="preview-container">
+                        <div class="preview-toolbar">
+                            <span class="toolbar-label">C4 PUML</span>
+                            <button class="tool-btn" data-action="zoom-out" title="Zoom out (mouse wheel)">−</button>
+                            <button class="tool-btn" data-action="zoom-in" title="Zoom in (mouse wheel)">+</button>
+                            <button class="tool-btn" data-action="zoom-reset" title="Reset zoom">Reset</button>
+                            <button class="tool-btn" data-action="zoom-fit" title="Fit to screen">Fit</button>
+                            <span class="toolbar-spacer"></span>
+                            <button class="tool-btn" data-action="copy-image" title="Copy image to clipboard">⧉ Copy</button>
+                            <button class="tool-btn" data-action="download-svg" title="Download as SVG">⬇ SVG</button>
+                            <button class="tool-btn" data-action="download-png" title="Download as PNG">⬇ PNG</button>
+                            <button class="tool-btn primary" data-action="popout" title="Open larger view">⛶ Pop Out</button>
+                        </div>
+                        <div id="c4-preview" class="preview-box">
+                            <div class="preview-content"></div>
+                            <div class="preview-status">Generate a diagram to preview it here.</div>
+                            <div class="zoom-indicator">100%</div>
+                        </div>
+                    </div>
+                    <div class="script-drawer collapsed" data-drawer="c4">
+                        <div class="drawer-header">
+                            <button class="drawer-toggle" data-toggle-drawer="c4"><span class="chev">▶</span>Show Script</button>
+                            <h3>C4 PlantUML Script</h3>
+                        </div>
+                        <textarea id="c4-output" spellcheck="false"></textarea>
+                    </div>
+                </div>
+
+                <!-- Mermaid Tab -->
+                <div id="tab-mermaid" class="tab-content" data-kind="mermaid">
+                    <div class="preview-container">
+                        <div class="preview-toolbar">
+                            <span class="toolbar-label">Mermaid</span>
+                            <button class="tool-btn" data-action="zoom-out" title="Zoom out (mouse wheel)">−</button>
+                            <button class="tool-btn" data-action="zoom-in" title="Zoom in (mouse wheel)">+</button>
+                            <button class="tool-btn" data-action="zoom-reset" title="Reset zoom">Reset</button>
+                            <button class="tool-btn" data-action="zoom-fit" title="Fit to screen">Fit</button>
+                            <span class="toolbar-spacer"></span>
+                            <button class="tool-btn" data-action="copy-image" title="Copy image to clipboard">⧉ Copy</button>
+                            <button class="tool-btn" data-action="download-svg" title="Download as SVG">⬇ SVG</button>
+                            <button class="tool-btn" data-action="download-png" title="Download as PNG">⬇ PNG</button>
+                            <button class="tool-btn primary" data-action="popout" title="Open larger view">⛶ Pop Out</button>
+                        </div>
+                        <div id="mermaid-preview" class="preview-box">
+                            <div class="preview-content"></div>
+                            <div class="preview-status">Generate a diagram to preview it here.</div>
+                            <div class="zoom-indicator">100%</div>
+                        </div>
+                    </div>
+                    <div class="script-drawer collapsed" data-drawer="mermaid">
+                        <div class="drawer-header">
+                            <button class="drawer-toggle" data-toggle-drawer="mermaid"><span class="chev">▶</span>Show Script</button>
+                            <h3>Mermaid Script</h3>
+                        </div>
+                        <textarea id="mermaid-output" spellcheck="false"></textarea>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for pop-out diagrams -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-toolbar">
+                <span class="modal-title" id="modal-title">Diagram</span>
+                <button class="tool-btn" data-modal-action="zoom-out" title="Zoom out">−</button>
+                <button class="tool-btn" data-modal-action="zoom-in" title="Zoom in">+</button>
+                <button class="tool-btn" data-modal-action="zoom-reset" title="Reset zoom">Reset</button>
+                <button class="tool-btn" data-modal-action="zoom-fit" title="Fit to screen">Fit</button>
+                <span class="toolbar-spacer"></span>
+                <button class="tool-btn" data-modal-action="copy-image" title="Copy image to clipboard">⧉ Copy</button>
+                <button class="tool-btn" data-modal-action="download-svg" title="Download as SVG">⬇ SVG</button>
+                <button class="tool-btn" data-modal-action="download-png" title="Download as PNG">⬇ PNG</button>
+                <button class="close-modal" id="close-modal-btn" title="Close (Esc)">×</button>
+            </div>
+            <div id="modal-preview" class="modal-preview-box">
+                <div class="preview-content"></div>
+                <div class="zoom-indicator">100%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- CDN Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ajv/8.17.1/ajv7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.5.0/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+
+    <!-- Link to external JavaScript file -->
+    <script src="script.js"></script>
+</body>
+
+</html>
